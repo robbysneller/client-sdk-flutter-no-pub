@@ -319,7 +319,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
 
     publisher?.pc.onIceCandidate = (rtc.RTCIceCandidate candidate) {
       logger.fine('publisher onIceCandidate');
-      logger.debug("${candidate.candidate}");
+      logger.warning("${candidate.candidate}");
       if (candidate.candidate.includes("100.64.")) {
         signalClient.sendIceCandidate(candidate, lk_rtc.SignalTarget.PUBLISHER);
       }

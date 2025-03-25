@@ -320,7 +320,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     publisher?.pc.onIceCandidate = (rtc.RTCIceCandidate candidate) {
       logger.fine('publisher onIceCandidate');
       logger.warning("${candidate.candidate}");
-      if (candidate.candidate.includes("100.64.")) {
+      if (candidate.candidate.contains("100.64.")) {
         signalClient.sendIceCandidate(candidate, lk_rtc.SignalTarget.PUBLISHER);
       }
     };
@@ -334,7 +334,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
 
     subscriber?.pc.onIceCandidate = (rtc.RTCIceCandidate candidate) {
       logger.fine('subscriber onIceCandidate');
-      if (candidate.candidate.includes("100.64.")) {
+      if (candidate.candidate.contains("100.64.")) {
         signalClient.sendIceCandidate(candidate, lk_rtc.SignalTarget.SUBSCRIBER);
       }
     };

@@ -1,5 +1,46 @@
 # CHANGELOG
 
+## 2.4.6
+
+* feat: Add smoothTransition option for AudioVisualizer. (#773)
+* fix: Fix deadlock when creating a frame cryptor on iOS/macOS.
+* fix: add task runner for linux to fix crashes.
+
+## 2.4.5
+
+* feat: noise filter for flutter web. (#762)
+
+## 2.4.4
+
+* feat: data stream
+* fix: calling setSourceEnabled should not affect the current output settings (#754)
+* fix: Calling connect on a disconnected room instance should reset _isClosed. (#752)
+* fix: Fix for Chrome getUserMedia "ideal" Constraint Change.
+* fix: fix duplicate fmtp for vp9 on some old Android devices. (#758)
+
+## 2.4.3
+
+* feat: Automatically configure audio mode for Android. (#746)
+
+## 2.4.2+hotfix.2
+
+* fix: Fix creation timing for local participant. (#749)
+* fix: Filter out non-video codecs for fast video track publication. (#747)
+
+## 2.4.2+hotfix.1
+
+* fix: fixed bug for fast track publish.
+
+## 2.4.2
+
+* fix: Fixed the echo issue on some specific models of Android devices.
+* chore: Bbmp version for flutter-webrtc.
+* fix: Improve browser version detection, fix issue #730 (#738)
+* feat: Fast track publication. (#720)
+* chore: Remove `bypassVoiceProcessing = true` settings for connect page. (#693)
+* fix: [bug] Crash when join room on Windows.
+* fix: Disable selectAudioInput for mobile platforms.
+
 ## 2.4.1
 
 * feat: VideoRenderer support cache renderer. (#723)

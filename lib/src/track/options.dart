@@ -21,6 +21,9 @@ import '../track/local/video.dart';
 import '../types/video_parameters.dart';
 import 'processor.dart';
 
+import 'processor_native.dart'
+    if (dart.library.js_interop) 'processor_web.dart';
+
 /// A type that represents front or back of the camera.
 enum CameraPosition {
   front,
@@ -88,9 +91,13 @@ class CameraCaptureOptions extends VideoCaptureOptions {
         'facingMode':
             cameraPosition == CameraPosition.front ? 'user' : 'environment'
     };
-    if (deviceId != null) {
+    if (deviceId != null && deviceId!.isNotEmpty) {
       if (kIsWeb) {
-        constraints['deviceId'] = deviceId;
+        if (isChrome129OrLater()) {
+          constraints['deviceId'] = {'exact': deviceId};
+        } else {
+          constraints['deviceId'] = {'ideal': deviceId};
+        }
       } else {
         constraints['optional'] = [
           {'sourceId': deviceId}
@@ -331,9 +338,13 @@ class AudioCaptureOptions extends LocalTrackOptions {
       }
     }
 
-    if (deviceId != null) {
+    if (deviceId != null && deviceId!.isNotEmpty) {
       if (kIsWeb) {
-        constraints['deviceId'] = deviceId;
+        if (isChrome129OrLater()) {
+          constraints['deviceId'] = {'exact': deviceId};
+        } else {
+          constraints['deviceId'] = {'ideal': deviceId};
+        }
       } else {
         constraints['optional']
             .cast<Map<String, dynamic>>()

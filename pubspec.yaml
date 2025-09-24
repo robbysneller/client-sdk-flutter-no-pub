@@ -15,7 +15,7 @@
 name: livekit_client
 description: Flutter Client SDK for LiveKit.
   Build real-time video and audio into your apps. Supports iOS, Android, and Web.
-version: 2.4.8
+version: 2.5.1
 homepage: https://github.com/livekit/client-sdk-flutter
 
 environment:
@@ -36,19 +36,21 @@ dependencies:
   logging: ^1.1.0
   uuid: ^4.5.1
   synchronized: ^3.0.0+3
-  protobuf: ">=3.0.0"
-  flutter_webrtc: ^0.14.1
+  protobuf: ^4.1.0
   device_info_plus: ^11.3.0
-  dart_webrtc: ^1.5.3
   sdp_transform: ^0.3.2
   web: ^1.0.0
   mime_type: ^1.0.1
   path: ^1.9.1
 
+  # Fix version to avoid version conflicts between WebRTC-SDK pods, which both this package and flutter_webrtc depend on.
+  flutter_webrtc: 1.2.0
+  dart_webrtc: ^1.6.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  lints: ^4.0.0
+  lints: ^6.0.0
   mockito: ^5.3.2
   import_sorter: ^4.6.0
   yaml: ^3.1.2
@@ -70,10 +72,11 @@ flutter:
         pluginClass: LiveKitPlugin
       windows:
         pluginClass: LiveKitPlugin
+      linux:
+        pluginClass: LiveKitPlugin
       web:
         pluginClass: LiveKitWebPlugin
         fileName: livekit_client_web.dart
-
 
 topics:
   - webrtc
@@ -81,4 +84,3 @@ topics:
   - video
   - livestream
   - conference
-  

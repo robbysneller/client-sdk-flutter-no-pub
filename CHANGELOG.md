@@ -1,5 +1,48 @@
 # CHANGELOG
 
+## 2.6.2
+
+* Added: Bitrate priority control APIs
+* Fixed: Windows: stop camera after unpublishing video track
+* Fixed: Keep mute state in sync with server
+* Fixed: Fix example prejoin device dropdown handling
+* Chore: Mark LocalVideoTrack constructor as internal for consistency with LocalAudioTrack
+* Chore: Update protobuf dependency to v6.0.0
+* Chore: Skip iOS platform download in CI
+
+## 2.6.1
+
+* Fixed: Enable E2EE for VP9 codec
+* Fixed: Correct spelling in E2EE log and error messages
+* Fixed: Ensure all dispose functions are executed even if one throws
+* Fixed: Fix microphone label typo in example app prejoin audio settings
+* Docs: Fix typos and inconsistencies in README and CHANGELOG
+
+## 2.6.0
+
+* Session API
+* Allow customizing screen share dialog labels for localization
+
+## 2.5.4
+
+* Added pre-connect audio buffering
+* Added token source API with caching and endpoint helpers
+* Enabled software AEC/NS/AGC for Linux
+* Added event logging with public/internal tagging
+* Migrated manual JSON serialization to json_serializable code generation
+* Re-enabled Flutter lint warnings and fixed existing issues
+* Improved reliable data channel buffering, sequencing, and added integration tests
+* Fixed race condition with pending tracks
+
+## 2.5.3
+
+* Feat: Data Packet Cryptor (#873)
+* Feat: Add E2EE support for H265 (#864)
+* Fix: fix async call for update participant info (#897)
+* Move the accessToken to header (#891)
+* Bumpup and clamp connection timeout, fix the comment (#893)
+* Fix events emit order (#902)
+
 ## 2.5.2
 
 * Fix missing properties for TextStreamInfo (#881)
@@ -37,7 +80,7 @@
 * fix: memory leak visualizer stop android (#831)
 * fix: ensure engine always has correct device id if switching camera fails (#820)
 * fix: Always emit RoomDisconnectedEvent when the reason is clientInitiated. (#821)
-* fix: sif frame enqueing with e2ee (#822)
+* fix: sif frame enqueuing with e2ee (#822)
 * fix: update camera `deviceId` when track is null (#814)
 * feat: Audio Visualizer for Windows/Linux. (#739)
 

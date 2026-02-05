@@ -48,6 +48,7 @@ import '../track/local/audio.dart';
 import '../track/local/local.dart';
 import '../track/local/video.dart';
 import '../track/options.dart';
+import '../types/audio_encoding.dart';
 import '../types/data_stream.dart';
 import '../types/other.dart';
 import '../types/participant_permissions.dart';
@@ -65,32 +66,76 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
   // RPC Pending Responses
   final Map<String, Function(String? payload, RpcError? error)> _pendingResponses = {};
 
-  @internal
-  LocalParticipant({
+  LocalParticipant._({
     required Room room,
-    required lk_models.ParticipantInfo info,
+    required String sid,
+    required String identity,
+    required String name,
   }) : super(
           room: room,
-          sid: info.sid,
-          identity: info.identity,
-          name: info.name,
-        ) {
-    updateFromInfo(info);
+          sid: sid,
+          identity: identity,
+          name: name,
+        );
+
+  @internal
+  static Future<LocalParticipant> createFromInfo({
+    required Room room,
+    required lk_models.ParticipantInfo info,
+  }) async {
+    final participant = LocalParticipant._(
+      room: room,
+      sid: info.sid,
+      identity: info.identity,
+      name: info.name,
+    );
+
+    await participant.updateFromInfo(info);
 
     if (lkPlatformIs(PlatformType.iOS)) {
-      BroadcastManager().addListener(_broadcastStateChanged);
+      BroadcastManager().addListener(participant._broadcastStateChanged);
     }
 
-    onDispose(() async {
-      BroadcastManager().removeListener(_broadcastStateChanged);
-      await unpublishAllTracks();
+    participant.onDispose(() async {
+      BroadcastManager().removeListener(participant._broadcastStateChanged);
+      await participant.unpublishAllTracks();
     });
+
+    return participant;
+  }
+
+  @override
+  @internal
+  Future<bool> updateFromInfo(lk_models.ParticipantInfo info) async {
+    final didUpdate = await super.updateFromInfo(info);
+    if (!didUpdate) return false;
+
+    // Reconcile local mute state with the server's copy.
+    for (final trackInfo in info.tracks) {
+      final pub = trackPublications[trackInfo.sid];
+      if (pub == null) continue;
+
+      final localMuted = pub.muted;
+      if (localMuted != trackInfo.muted) {
+        logger.fine(
+          'updating server mute state after reconcile, track: ${trackInfo.sid}, muted: $localMuted',
+        );
+        try {
+          room.engine.signalClient.sendMuteTrack(trackInfo.sid, localMuted);
+        } catch (e) {
+          logger.warning('Failed to update server mute state after reconcile: $e');
+        }
+      }
+    }
+
+    return true;
   }
 
   /// Handle broadcast state change (iOS only)
   void _broadcastStateChanged() {
     final isEnabled = BroadcastManager().isBroadcasting && BroadcastManager().shouldPublishTrack;
-    setScreenShareEnabled(isEnabled);
+    // Listener must stay sync (void), so use unawaited here.
+    unawaited(setScreenShareEnabled(isEnabled));
   }
 
   /// Publish an [AudioTrack] to the [Room].
@@ -106,22 +151,26 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
     // Use defaultPublishOptions if options is null
     publishOptions ??= track.lastPublishOptions ?? room.roomOptions.defaultAudioPublishOptions;
 
-    final List<rtc.RTCRtpEncoding> encodings = [
-      rtc.RTCRtpEncoding(
-        maxBitrate: publishOptions.audioBitrate,
-      )
-    ];
+    final audioEncoding = publishOptions.encoding ?? AudioEncoding.presetMusic;
+    final List<rtc.RTCRtpEncoding> encodings = [audioEncoding.toRTCRtpEncoding()];
 
     final req = lk_rtc.AddTrackRequest(
       cid: track.getCid(),
       name: publishOptions.name ?? AudioPublishOptions.defaultMicrophoneName,
       type: track.kind.toPBType(),
       source: track.source.toPBType(),
+      muted: track.muted,
       stream: buildStreamId(publishOptions, track.source),
       disableDtx: !publishOptions.dtx,
       disableRed: room.e2eeManager != null ? true : publishOptions.red ?? true,
       encryption: room.roomOptions.lkEncryptionType,
     );
+
+    // Populate audio features (e.g., TF_NO_DTX, TF_PRECONNECT_BUFFER)
+    req.audioFeatures.addAll([
+      if (!publishOptions.dtx) lk_models.AudioTrackFeature.TF_NO_DTX,
+      if (publishOptions.preConnect) lk_models.AudioTrackFeature.TF_PRECONNECT_BUFFER,
+    ]);
 
     Future<lk_models.TrackInfo> negotiate() async {
       track.transceiver = await room.engine.createTransceiverRTCRtpSender(track, publishOptions!, encodings);
@@ -138,9 +187,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
 
       final transceiverInit = rtc.RTCRtpTransceiverInit(
         direction: rtc.TransceiverDirection.SendOnly,
-        sendEncodings: [
-          if (publishOptions.audioBitrate > 0) rtc.RTCRtpEncoding(maxBitrate: publishOptions.audioBitrate),
-        ],
+        sendEncodings: encodings,
       );
       // addTransceiver cannot pass in a kind parameter due to a bug in flutter-webrtc (web)
       track.transceiver = await room.engine.publisher?.pc.addTransceiver(
@@ -170,9 +217,9 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
     await room.applyAudioSpeakerSettings();
 
     final listener = track.createListener();
-    listener.on((TrackEndedEvent event) {
+    listener.on((TrackEndedEvent event) async {
       logger.fine('TrackEndedEvent: ${event.track}');
-      removePublishedTrack(pub.sid);
+      await removePublishedTrack(pub.sid);
     });
 
     [events, room.events].emit(LocalTrackPublishedEvent(
@@ -310,7 +357,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
             getDefaultDegradationPreference(
               track,
             );
-        track.setDegradationPreference(degradationPreference);
+        await track.setDegradationPreference(degradationPreference);
       }
 
       if (kIsWeb && lkBrowser() == BrowserType.firefox && track.kind == TrackType.AUDIO) {
@@ -338,7 +385,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
       source: track.source.toPBType(),
       encryption: room.roomOptions.lkEncryptionType,
       simulcastCodecs: simulcastCodecs,
-      muted: false,
+      muted: track.muted,
       stream: buildStreamId(publishOptions, track.source),
     );
 
@@ -411,7 +458,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
             getDefaultDegradationPreference(
               track,
             );
-        track.setDegradationPreference(degradationPreference);
+        await track.setDegradationPreference(degradationPreference);
       }
 
       if (kIsWeb && lkBrowser() == BrowserType.firefox && track.kind == TrackType.AUDIO) {
@@ -446,9 +493,9 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
     await track.processor?.onPublish(room);
 
     final listener = track.createListener();
-    listener.on((TrackEndedEvent event) {
+    listener.on((TrackEndedEvent event) async {
       logger.fine('TrackEndedEvent: ${event.track}');
-      removePublishedTrack(pub.sid);
+      await removePublishedTrack(pub.sid);
     });
 
     [events, room.events].emit(LocalTrackPublishedEvent(
@@ -556,8 +603,9 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
     List<String>? destinationIdentities,
     String? topic,
   }) async {
+    final publishReliably = reliable == true;
     final packet = lk_models.DataPacket(
-      kind: reliable == true ? lk_models.DataPacket_Kind.RELIABLE : lk_models.DataPacket_Kind.LOSSY,
+      kind: publishReliably ? lk_models.DataPacket_Kind.RELIABLE : lk_models.DataPacket_Kind.LOSSY,
       user: lk_models.UserPacket(
         payload: data,
         participantIdentity: identity,
@@ -566,7 +614,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
       ),
     );
 
-    await room.engine.sendDataPacket(packet, reliability: reliable);
+    await room.engine.sendDataPacket(packet, reliability: publishReliably ? Reliability.reliable : Reliability.lossy);
   }
 
   /// Sets and updates the metadata of the local participant.
@@ -705,7 +753,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
 
         if (lkPlatformIs(PlatformType.iOS) && !BroadcastManager().isBroadcasting) {
           // Wait until broadcasting to publish track
-          BroadcastManager().requestActivation();
+          await BroadcastManager().requestActivation();
           return null;
         }
 
@@ -849,6 +897,7 @@ class LocalParticipant extends Participant<LocalTrackPublication> {
               : VideoPublishOptions.defaultCameraName),
       type: track.kind.toPBType(),
       source: track.source.toPBType(),
+      muted: track.muted,
       layers: layers,
       sid: publication.sid,
       simulcastCodecs: <lk_rtc.SimulcastCodec>[
@@ -893,6 +942,7 @@ extension RPCMethods on LocalParticipant {
     }
 
     final packet = lk_models.DataPacket(
+      kind: lk_models.DataPacket_Kind.RELIABLE,
       rpcRequest: lk_models.RpcRequest(
         id: requestId,
         method: method,
@@ -904,7 +954,7 @@ extension RPCMethods on LocalParticipant {
       destinationIdentities: [destinationIdentity],
     );
 
-    await room.engine.sendDataPacket(packet, reliability: true);
+    await room.engine.sendDataPacket(packet, reliability: Reliability.reliable);
   }
 
   @internal
@@ -915,6 +965,7 @@ extension RPCMethods on LocalParticipant {
     lk_models.RpcError? error,
   }) async {
     final packet = lk_models.DataPacket(
+      kind: lk_models.DataPacket_Kind.RELIABLE,
       rpcResponse: lk_models.RpcResponse(
         requestId: requestId,
         payload: error == null ? payload : null,
@@ -924,7 +975,7 @@ extension RPCMethods on LocalParticipant {
       participantIdentity: identity,
     );
 
-    await room.engine.sendDataPacket(packet, reliability: true);
+    await room.engine.sendDataPacket(packet, reliability: Reliability.reliable);
   }
 
   @internal
@@ -933,6 +984,7 @@ extension RPCMethods on LocalParticipant {
     required String requestId,
   }) async {
     final packet = lk_models.DataPacket(
+      kind: lk_models.DataPacket_Kind.RELIABLE,
       rpcAck: lk_models.RpcAck(
         requestId: requestId,
       ),
@@ -940,7 +992,7 @@ extension RPCMethods on LocalParticipant {
       participantIdentity: identity,
     );
 
-    await room.engine.sendDataPacket(packet, reliability: true);
+    await room.engine.sendDataPacket(packet, reliability: Reliability.reliable);
   }
 
   void handleIncomingRpcAck(String requestId) {
@@ -1191,11 +1243,11 @@ extension DataStreamParticipantMethods on LocalParticipant {
 
     final destinationIdentities = options?.destinationIdentities;
     final packet = lk_models.DataPacket(
+      kind: lk_models.DataPacket_Kind.RELIABLE,
       destinationIdentities: destinationIdentities,
       streamHeader: header,
     );
-
-    await room.engine.sendDataPacket(packet, reliability: true);
+    await room.engine.sendDataPacket(packet, reliability: Reliability.reliable);
 
     final writableStream =
         WritableStream<String>(destinationIdentities: destinationIdentities!, engine: room.engine, streamId: streamId);
@@ -1206,13 +1258,7 @@ extension DataStreamParticipantMethods on LocalParticipant {
 
     final cancelFun = room.engine.events.once<EngineClosingEvent>((_) => onEngineClose);
 
-    final writer = TextStreamWriter(
-      writableStream: writableStream,
-      info: info,
-      onClose: () {
-        cancelFun?.call();
-      },
-    );
+    final writer = TextStreamWriter(writableStream: writableStream, info: info, onClose: cancelFun);
 
     return writer;
   }
@@ -1285,9 +1331,13 @@ extension DataStreamParticipantMethods on LocalParticipant {
     );
 
     final destinationIdentities = options?.destinationIdentities;
-    final packet = lk_models.DataPacket(destinationIdentities: destinationIdentities, streamHeader: header);
+    final packet = lk_models.DataPacket(
+      kind: lk_models.DataPacket_Kind.RELIABLE,
+      destinationIdentities: destinationIdentities,
+      streamHeader: header,
+    );
 
-    await room.engine.sendDataPacket(packet, reliability: true);
+    await room.engine.sendDataPacket(packet, reliability: Reliability.reliable);
 
     final writableStream = WritableStream<Uint8List>(
       destinationIdentities: destinationIdentities,
@@ -1304,9 +1354,7 @@ extension DataStreamParticipantMethods on LocalParticipant {
     final byteWriter = ByteStreamWriter(
       writableStream: writableStream,
       info: info,
-      onClose: () {
-        cancelFun?.call();
-      },
+      onClose: cancelFun,
     );
 
     return byteWriter;

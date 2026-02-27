@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 2.6.4
+
+* Added: Add web support for pre-connect audio buffer
+* Fixed: Remove duplicate sendLeave
+* Fixed: Fix setVideoInputDevice not switching camera
+* Fixed: Web pre-connect audio buffer using wrong sample rate
+* Fixed: Fix iOS audio renderer resource leak and remove Android 32-bit dead code
+* Fixed: Fix web audio capture not starting on Safari due to suspended AudioContext
+* Performance: Send raw PCM bytes in audio renderer instead of boxed int arrays
+
+## 2.6.3
+
+* Fixed: Fix publisher connection causing redundant renegotiations on lower-end devices
+* Fixed: Use explicit show clauses for foundation imports
+* Fixed: Fix concurrent modification on collection iteration during async operations
+* Fixed: Fix crash when writing to closed data stream controllers
+* Fixed: Fix region URL provider cache using wrong time unit and wrong field check for regions in leave event
+* Chore: Update protobuf to v1.44.0
+
 ## 2.6.2
 
 * Added: Bitrate priority control APIs

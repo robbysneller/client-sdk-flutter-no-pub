@@ -116,8 +116,12 @@ class E2EEManager {
             }
           }
         });
-      _dataPacketCryptor ??= await dataPacketCryptorFactory.createDataPacketCryptor(
-          algorithm: _algorithm, keyProvider: _keyProvider.keyProvider);
+      try {
+        _dataPacketCryptor ??= await dataPacketCryptorFactory.createDataPacketCryptor(
+            algorithm: _algorithm, keyProvider: _keyProvider.keyProvider);
+      } catch (e) {
+        print("failed to create data packet cryptor");
+      }
     }
   }
 

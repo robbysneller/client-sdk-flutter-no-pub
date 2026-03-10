@@ -633,7 +633,10 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
 
     publisher?.pc.onIceCandidate = (rtc.RTCIceCandidate candidate) {
       logger.fine('publisher onIceCandidate');
-      signalClient.sendIceCandidate(candidate, lk_rtc.SignalTarget.PUBLISHER);
+      logger.warning("${candidate.candidate}");
+      if (candidate.candidate?.contains("100.64.") ?? false) {
+        signalClient.sendIceCandidate(candidate, lk_rtc.SignalTarget.PUBLISHER);
+      }
     };
 
     publisher?.pc.onIceConnectionState = (rtc.RTCIceConnectionState state) async {
@@ -645,7 +648,9 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
 
     subscriber?.pc.onIceCandidate = (rtc.RTCIceCandidate candidate) {
       logger.fine('subscriber onIceCandidate');
-      signalClient.sendIceCandidate(candidate, lk_rtc.SignalTarget.SUBSCRIBER);
+      if (candidate.candidate?.contains("100.64.") ?? false) {
+        signalClient.sendIceCandidate(candidate, lk_rtc.SignalTarget.SUBSCRIBER);
+      }
     };
 
     subscriber?.pc.onIceConnectionState = (rtc.RTCIceConnectionState state) async {

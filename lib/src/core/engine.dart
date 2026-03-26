@@ -15,6 +15,7 @@
 // ignore_for_file: deprecated_member_use_from_same_package
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
@@ -1018,7 +1019,11 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
       return;
     }
 
-    final delay = defaultRetryDelaysInMs[reconnectAttempts!];
+    var delay = defaultRetryDelaysInMs[reconnectAttempts!];
+    // Add random jitter to prevent thundering herd on reconnect
+    if (reconnectAttempts! > 1) {
+      delay += math.Random().nextInt(1000);
+    }
 
     events.emit(EngineAttemptReconnectEvent(
       attempt: reconnectAttempts! + 1,
@@ -1236,6 +1241,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     required List<String> trackSidsDisabled,
   }) async {
     final previousAnswer = (await subscriber?.pc.getLocalDescription())?.toPBType();
+    final previousOffer = (await subscriber?.pc.getRemoteDescription())?.toPBType();
 
     // Build data channel receive states for reliability
     final dataChannelReceiveStates = <lk_rtc.DataChannelReceiveState>[];
@@ -1250,6 +1256,7 @@ class Engine extends Disposable with EventsEmittable<EngineEvent> {
     }
     signalClient.sendSyncState(
       answer: previousAnswer,
+      offer: previousOffer,
       subscription: subscription,
       publishTracks: publishTracks,
       dataChannelInfo: dataChannelInfo(),
